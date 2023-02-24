@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "typescript",
+			"tsconfig": "kitsutsuki/tsconfig.json",
+			"problemMatcher": [
+                "$tsc"
+            ],
+			"label": "build_ts"
+		}
+	]
+}
