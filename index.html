@@ -8,18 +8,21 @@
 </head>
 <body>
 <div id="toolbar">
-  <button id="btn-ball" class="action">⚪ ボールをころがす</button>
-  <button id="btn-auto" class="action">🔁 れんぞく</button>
-  <div class="sep"></div>
-  <button class="tool active" data-mode="select">✋ うごかす</button>
-  <button class="tool" data-mode="letter">あ もじ</button>
-  <button class="tool" data-mode="wall">📏 かべ</button>
-  <button class="tool" data-mode="circle">⚫ まる</button>
-  <button class="tool" data-mode="triangle">🔺 さんかく</button>
-  <button class="tool" data-mode="erase">🧽 けす</button>
-  <div class="sep"></div>
-  <button id="btn-clear" class="action danger">🗑 ぜんぶけす</button>
-  <span id="hint"></span>
+  <div id="toolbar-scroll">
+    <button id="btn-ball" class="action">⚪ ボールをころがす</button>
+    <button id="btn-auto" class="action">🔁 れんぞく</button>
+    <div class="sep"></div>
+    <button class="tool active" data-mode="select">✋ うごかす</button>
+    <button class="tool" data-mode="letter">あ もじ</button>
+    <button class="tool" data-mode="wall">📏 かべ</button>
+    <button class="tool" data-mode="circle">⚫ まる</button>
+    <button class="tool" data-mode="triangle">🔺 さんかく</button>
+    <button class="tool" data-mode="erase">🧽 けす</button>
+    <div class="sep"></div>
+    <button id="btn-clear" class="action danger">🗑 ぜんぶけす</button>
+    <span id="hint"></span>
+  </div>
+  <div id="toolbar-more">›</div>
 </div>
 <div id="kana-panel" class="hidden">
   <div id="kana-tabs">

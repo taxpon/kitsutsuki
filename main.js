@@ -264,6 +264,16 @@ document.querySelectorAll('#toolbar .tool').forEach(btn => {
 updateHint();
 canvas.style.cursor = 'grab';
 
+const toolbarEl = document.getElementById('toolbar');
+const toolbarScroll = document.getElementById('toolbar-scroll');
+function updateToolbarMore() {
+  const more = toolbarScroll.scrollWidth - toolbarScroll.clientWidth - toolbarScroll.scrollLeft > 4;
+  toolbarEl.classList.toggle('has-more', more);
+}
+toolbarScroll.addEventListener('scroll', updateToolbarMore);
+window.addEventListener('resize', updateToolbarMore);
+updateToolbarMore();
+
 document.getElementById('btn-ball').addEventListener('click', () => {
   warmUpSpeech();
   spawnBall();

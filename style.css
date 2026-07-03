@@ -28,15 +28,44 @@ html, body {
   left: 10px;
   right: 10px;
   z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 6px;
   padding: 8px;
   background: rgba(255, 255, 255, 0.92);
   border: 3px solid #222;
   border-radius: 14px;
+  overflow: hidden;
+}
+
+#toolbar-scroll {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-wrap: wrap;
 }
+
+#toolbar-more {
+  display: none;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 44px;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 6px;
+  font-size: 26px;
+  font-weight: bold;
+  color: #222;
+  background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(245,247,232,0.95) 55%);
+  pointer-events: none;
+  animation: nudge 1.2s ease-in-out infinite;
+}
+
+@keyframes nudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-4px); }
+}
+
+#toolbar.has-more #toolbar-more { display: flex; }
 
 #toolbar button {
   font-family: inherit;
@@ -129,11 +158,15 @@ html, body {
 
 @media (max-width: 700px) {
   #toolbar {
+    padding: 6px;
+  }
+  #toolbar-scroll {
     flex-wrap: nowrap;
     overflow-x: auto;
-    padding: 6px;
     gap: 4px;
+    scrollbar-width: none;
   }
+  #toolbar-scroll::-webkit-scrollbar { display: none; }
   #toolbar button {
     font-size: 13px;
     padding: 7px 10px;
