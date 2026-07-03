@@ -126,3 +126,31 @@ html, body {
 #kana-grid button:hover { background: #ffe98a; }
 #kana-grid button.selected { background: #ffd93d; }
 #kana-grid button:disabled { visibility: hidden; }
+
+@media (max-width: 700px) {
+  #toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 6px;
+    gap: 4px;
+  }
+  #toolbar button {
+    font-size: 13px;
+    padding: 7px 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .sep { flex-shrink: 0; }
+  #hint { display: none; }
+  #kana-panel {
+    top: 64px;
+    max-width: calc(100vw - 20px);
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  #kana-grid button {
+    font-size: 17px;
+    width: 38px;
+    height: 38px;
+  }
+}

@@ -191,7 +191,7 @@ function spawnBall() {
     restitution: 0.65, friction: 0.02, frictionAir: 0.0008, density: 0.002,
   });
   body.plugin = { kind: 'ball' };
-  Body.setVelocity(body, { x: 5, y: 0 });
+  Body.setVelocity(body, { x: W < 700 ? 0.8 : 5, y: 0 });
   World.add(engine.world, body);
   return body;
 }
@@ -201,10 +201,17 @@ function initialScene() {
   const tb = document.getElementById('toolbar').getBoundingClientRect().bottom;
   spawnPoint.x = 60;
   spawnPoint.y = tb + 35;
-  makeWall(-20, tb + 60, 300, tb + 160);
-  makeLetter(460, tb + 287, 'か');
-  makeLetter(755, tb + 349, 'ら');
-  makeLetter(1057, tb + 471, 'す');
+  if (W < 700) {
+    makeWall(-20, tb + 60, 110, tb + 90);
+    Body.setAngle(makeLetter(160, tb + 240, 'か'), 0.12);
+    Body.setAngle(makeLetter(265, tb + 280, 'ら'), 0.05);
+    Body.setAngle(makeLetter(350, tb + 348, 'す'), 0.05);
+  } else {
+    makeWall(-20, tb + 60, 300, tb + 160);
+    makeLetter(460, tb + 287, 'か');
+    makeLetter(755, tb + 349, 'ら');
+    makeLetter(1057, tb + 471, 'す');
+  }
 }
 initialScene();
 
