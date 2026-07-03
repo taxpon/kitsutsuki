@@ -158,16 +158,17 @@ function enlargeLetter(body) {
   body.plugin.scale *= 1.25;
 }
 
-function makeWall(x1, y1, x2, y2) {
-  const dx = x2 - x1, dy = y2 - y1;
-  const len = Math.max(Math.hypot(dx, dy), 40);
-  const angle = Math.atan2(dy, dx);
-  const body = Bodies.rectangle((x1 + x2) / 2, (y1 + y2) / 2, len, 26, {
-    isStatic: true, angle,
-  });
-  body.plugin = { kind: 'wall' };
+function makeWallAt(x, y, len, angle) {
+  len = Math.max(len, 40);
+  const body = Bodies.rectangle(x, y, len, 26, { isStatic: true, angle });
+  body.plugin = { kind: 'wall', len };
   World.add(engine.world, body);
   return body;
+}
+
+function makeWall(x1, y1, x2, y2) {
+  return makeWallAt((x1 + x2) / 2, (y1 + y2) / 2,
+    Math.hypot(x2 - x1, y2 - y1), Math.atan2(y2 - y1, x2 - x1));
 }
 
 function makeCircle(x, y) {
@@ -196,6 +197,58 @@ function spawnBall() {
   return body;
 }
 
+// ---- シェア ----
+async function compressToBase64url(str) {
+  const stream = new Blob([str]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+  const buf = await new Response(stream).arrayBuffer();
+  let bin = '';
+  for (const b of new Uint8Array(buf)) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function decompressFromBase64url(s) {
+  const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/'));
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Response(stream).text();
+}
+
+function serializeScene() {
+  const objs = [];
+  for (const b of Composite.allBodies(engine.world)) {
+    const kind = b.plugin?.kind;
+    const x = Math.round(b.position.x), y = Math.round(b.position.y);
+    const a = +b.angle.toFixed(3);
+    if (kind === 'letter') objs.push(['L', b.plugin.char, x, y, a, +b.plugin.scale.toFixed(3)]);
+    else if (kind === 'wall') objs.push(['W', x, y, Math.round(b.plugin.len), a]);
+    else if (kind === 'circle') objs.push(['C', x, y]);
+    else if (kind === 'triangle') objs.push(['T', x, y, a]);
+  }
+  return { v: 1, w: W, h: H, sp: [Math.round(spawnPoint.x), Math.round(spawnPoint.y)], o: objs };
+}
+
+function restoreScene(data) {
+  const sx = W / data.w, sy = H / data.h;
+  spawnPoint.x = data.sp[0] * sx;
+  spawnPoint.y = data.sp[1] * sy;
+  for (const o of data.o) {
+    if (o[0] === 'L') {
+      const b = makeLetter(o[2] * sx, o[3] * sy, o[1]);
+      Body.setAngle(b, o[4]);
+      if (o[5] !== 1) {
+        Body.scale(b, o[5], o[5]);
+        b.plugin.scale = o[5];
+      }
+    } else if (o[0] === 'W') {
+      makeWallAt(o[1] * sx, o[2] * sy, o[3], o[4]);
+    } else if (o[0] === 'C') {
+      makeCircle(o[1] * sx, o[2] * sy);
+    } else if (o[0] === 'T') {
+      Body.setAngle(makeTriangle(o[1] * sx, o[2] * sy), o[3]);
+    }
+  }
+}
+
 // さいしょのレールとサンプル
 function initialScene() {
   const tb = document.getElementById('toolbar').getBoundingClientRect().bottom;
@@ -213,7 +266,19 @@ function initialScene() {
     makeLetter(1057, tb + 471, 'す');
   }
 }
-initialScene();
+
+(async () => {
+  const m = location.hash.match(/^#s=(.+)$/);
+  if (m) {
+    try {
+      restoreScene(JSON.parse(await decompressFromBase64url(m[1])));
+      return;
+    } catch (e) {
+      // こわれたURLは初期シーンにフォールバック
+    }
+  }
+  initialScene();
+})();
 
 // ---- しょうとつ ----
 const effects = [];
@@ -296,6 +361,30 @@ btnAuto.addEventListener('click', () => {
 
 document.getElementById('btn-clear').addEventListener('click', () => {
   World.clear(engine.world, false);
+});
+
+const btnShare = document.getElementById('btn-share');
+btnShare.addEventListener('click', async () => {
+  const payload = await compressToBase64url(JSON.stringify(serializeScene()));
+  const url = `${location.origin}${location.pathname}#s=${payload}`;
+  history.replaceState(null, '', `#s=${payload}`);
+  if (navigator.share) {
+    try {
+      await navigator.share({ url });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    btnShare.textContent = '✅ コピーしました';
+  } catch (e) {
+    prompt('このURLをコピーしてください', url);
+    btnShare.textContent = '🔗 シェア';
+    return;
+  }
+  setTimeout(() => { btnShare.textContent = '🔗 シェア'; }, 1500);
 });
 
 function canvasPos(ev) {
