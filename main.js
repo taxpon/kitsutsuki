@@ -224,33 +224,112 @@ function spawnBall() {
 }
 
 // ---- シェア ----
-async function compressToBase64url(str) {
-  const stream = new Blob([str]).stream().pipeThrough(new CompressionStream('deflate-raw'));
-  const buf = await new Response(stream).arrayBuffer();
+const KANA_LIST = KANA_ROWS.flatMap(row =>
+  (typeof row === 'string' ? [...row] : row).filter(ch => ch.trim() !== ''));
+
+function bytesToBase64url(bytes) {
   let bin = '';
-  for (const b of new Uint8Array(buf)) bin += String.fromCharCode(b);
+  for (const b of bytes) bin += String.fromCharCode(b);
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-async function decompressFromBase64url(s) {
+function base64urlToBytes(s) {
   const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/'));
-  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return Uint8Array.from(bin, c => c.charCodeAt(0));
+}
+
+async function decompressFromBase64url(s) {
+  const stream = new Blob([base64urlToBytes(s)]).stream()
+    .pipeThrough(new DecompressionStream('deflate-raw'));
   return new Response(stream).text();
 }
 
-function serializeScene() {
-  const objs = [];
-  for (const b of Composite.allBodies(engine.world)) {
-    const kind = b.plugin?.kind;
+const TAG = { letter: 0, wall: 1, circle: 2, triangle: 3 };
+const KATA_FLAG = 0x80;
+const quantAngle = (a) => Math.max(-127, Math.min(127, Math.round(a / Math.PI * 127)));
+
+function serializeBinary() {
+  const bodies = Composite.allBodies(engine.world)
+    .filter(b => b.plugin?.kind in TAG)
+    .slice(0, 255);
+  const dv = new DataView(new ArrayBuffer(10 + bodies.length * 8));
+  let p = 0;
+  dv.setUint8(p, 1); p += 1;
+  dv.setUint16(p, Math.round(worldW)); p += 2;
+  dv.setUint16(p, Math.round(worldH)); p += 2;
+  dv.setInt16(p, Math.round(spawnPoint.x)); p += 2;
+  dv.setInt16(p, Math.round(spawnPoint.y)); p += 2;
+  dv.setUint8(p, bodies.length); p += 1;
+  for (const b of bodies) {
+    const kind = b.plugin.kind;
     const x = Math.round(b.position.x), y = Math.round(b.position.y);
-    const a = +b.angle.toFixed(3);
-    if (kind === 'letter') objs.push(['L', b.plugin.char, x, y, a, +b.plugin.scale.toFixed(3)]);
-    else if (kind === 'wall') objs.push(['W', x, y, Math.round(b.plugin.len), a]);
-    else if (kind === 'circle') objs.push(['C', x, y]);
-    else if (kind === 'triangle') objs.push(['T', x, y, a]);
+    if (kind === 'letter') {
+      const hira = toHiragana(b.plugin.char);
+      dv.setUint8(p, TAG.letter | (hira === b.plugin.char ? 0 : KATA_FLAG)); p += 1;
+      dv.setUint8(p, Math.max(0, KANA_LIST.indexOf(hira))); p += 1;
+      dv.setInt16(p, x); p += 2;
+      dv.setInt16(p, y); p += 2;
+      dv.setInt8(p, quantAngle(b.angle)); p += 1;
+      dv.setUint8(p, Math.max(0, Math.min(7, Math.round(Math.log(b.plugin.scale) / Math.log(1.25))))); p += 1;
+    } else if (kind === 'wall') {
+      dv.setUint8(p, TAG.wall); p += 1;
+      dv.setInt16(p, x); p += 2;
+      dv.setInt16(p, y); p += 2;
+      dv.setUint16(p, Math.round(b.plugin.len)); p += 2;
+      dv.setInt8(p, quantAngle(b.angle)); p += 1;
+    } else if (kind === 'circle') {
+      dv.setUint8(p, TAG.circle); p += 1;
+      dv.setInt16(p, x); p += 2;
+      dv.setInt16(p, y); p += 2;
+    } else {
+      dv.setUint8(p, TAG.triangle); p += 1;
+      dv.setInt16(p, x); p += 2;
+      dv.setInt16(p, y); p += 2;
+      dv.setInt8(p, quantAngle(b.angle)); p += 1;
+    }
   }
-  return { v: 1, w: Math.round(worldW), h: Math.round(worldH), sp: [Math.round(spawnPoint.x), Math.round(spawnPoint.y)], o: objs };
+  return bytesToBase64url(new Uint8Array(dv.buffer, 0, p));
+}
+
+function restoreBinary(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let p = 0;
+  const version = dv.getUint8(p); p += 1;
+  if (version !== 1) throw new Error('unknown version');
+  worldW = dv.getUint16(p); p += 2;
+  worldH = dv.getUint16(p); p += 2;
+  fixedWorld = true;
+  updateView();
+  spawnPoint.x = dv.getInt16(p); p += 2;
+  spawnPoint.y = dv.getInt16(p); p += 2;
+  const count = dv.getUint8(p); p += 1;
+  for (let i = 0; i < count; i++) {
+    const tag = dv.getUint8(p); p += 1;
+    if ((tag & 0x7f) === TAG.letter) {
+      const idx = dv.getUint8(p); p += 1;
+      const x = dv.getInt16(p); p += 2;
+      const y = dv.getInt16(p); p += 2;
+      const angle = dv.getInt8(p) / 127 * Math.PI; p += 1;
+      const scale = 1.25 ** dv.getUint8(p); p += 1;
+      const char = tag & KATA_FLAG ? toKatakana(KANA_LIST[idx]) : KANA_LIST[idx];
+      const b = makeLetter(x, y, char);
+      Body.setAngle(b, angle);
+      if (scale !== 1) {
+        Body.scale(b, scale, scale);
+        b.plugin.scale = scale;
+      }
+    } else if (tag === TAG.wall) {
+      const x = dv.getInt16(p); p += 2;
+      const y = dv.getInt16(p); p += 2;
+      const len = dv.getUint16(p); p += 2;
+      makeWallAt(x, y, len, dv.getInt8(p) / 127 * Math.PI); p += 1;
+    } else if (tag === TAG.circle) {
+      makeCircle(dv.getInt16(p), dv.getInt16(p + 2)); p += 4;
+    } else {
+      const b = makeTriangle(dv.getInt16(p), dv.getInt16(p + 2)); p += 4;
+      Body.setAngle(b, dv.getInt8(p) / 127 * Math.PI); p += 1;
+    }
+  }
 }
 
 function restoreScene(data) {
@@ -297,13 +376,20 @@ function initialScene() {
 }
 
 (async () => {
-  const m = location.hash.match(/^#s=(.+)$/);
+  const m = location.hash.match(/^#([bs])=(.+)$/);
   if (m) {
     try {
-      restoreScene(JSON.parse(await decompressFromBase64url(m[1])));
+      if (m[1] === 'b') {
+        restoreBinary(base64urlToBytes(m[2]));
+      } else {
+        restoreScene(JSON.parse(await decompressFromBase64url(m[2])));
+      }
       return;
     } catch (e) {
       // こわれたURLは初期シーンにフォールバック
+      World.clear(engine.world, false);
+      fixedWorld = false;
+      resize();
     }
   }
   initialScene();
@@ -394,9 +480,9 @@ document.getElementById('btn-clear').addEventListener('click', () => {
 
 const btnShare = document.getElementById('btn-share');
 btnShare.addEventListener('click', async () => {
-  const payload = await compressToBase64url(JSON.stringify(serializeScene()));
-  const url = `${location.origin}${location.pathname}#s=${payload}`;
-  history.replaceState(null, '', `#s=${payload}`);
+  const payload = serializeBinary();
+  const url = `${location.origin}${location.pathname}#b=${payload}`;
+  history.replaceState(null, '', `#b=${payload}`);
   if (navigator.share) {
     try {
       await navigator.share({ url });
