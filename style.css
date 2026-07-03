@@ -1,0 +1,128 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", sans-serif;
+}
+
+#stage {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  background: #00cc00;
+  touch-action: none;
+}
+
+#toolbar, #kana-panel {
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+#toolbar {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 3px solid #222;
+  border-radius: 14px;
+  flex-wrap: wrap;
+}
+
+#toolbar button {
+  font-family: inherit;
+  font-size: 15px;
+  padding: 8px 14px;
+  border: 2px solid #222;
+  border-radius: 10px;
+  background: #f5f7e8;
+  cursor: pointer;
+}
+
+#toolbar button:hover { background: #e8ecd0; }
+
+#toolbar button.tool.active {
+  background: #ffd93d;
+  box-shadow: 0 0 0 2px #222 inset;
+}
+
+#toolbar button.action { background: #d9f0ff; font-weight: bold; }
+#toolbar button.action.active {
+  background: #ffd93d;
+  box-shadow: 0 0 0 2px #222 inset;
+}
+#toolbar button.action:hover { background: #bfe4ff; }
+#toolbar button.danger { background: #ffd9d9; }
+#toolbar button.danger:hover { background: #ffbfbf; }
+
+.sep {
+  width: 2px;
+  height: 28px;
+  background: #ccc;
+  margin: 0 4px;
+}
+
+#hint {
+  font-size: 13px;
+  color: #555;
+  margin-left: 8px;
+}
+
+#kana-panel {
+  position: fixed;
+  top: 74px;
+  left: 10px;
+  z-index: 10;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 3px solid #222;
+  border-radius: 14px;
+  max-width: 560px;
+}
+
+#kana-panel.hidden { display: none; }
+
+#kana-tabs { margin-bottom: 8px; }
+
+#kana-tabs button {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 6px 16px;
+  border: 2px solid #222;
+  border-radius: 8px;
+  background: #eee;
+  cursor: pointer;
+  margin-right: 6px;
+}
+
+#kana-tabs button.active { background: #ffd93d; }
+
+#kana-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+
+#kana-grid button {
+  font-family: inherit;
+  font-size: 20px;
+  width: 44px;
+  height: 44px;
+  border: 2px solid #222;
+  border-radius: 8px;
+  background: #f5f7e8;
+  cursor: pointer;
+}
+
+#kana-grid button:hover { background: #ffe98a; }
+#kana-grid button.selected { background: #ffd93d; }
+#kana-grid button:disabled { visibility: hidden; }
