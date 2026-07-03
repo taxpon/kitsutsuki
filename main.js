@@ -27,10 +27,16 @@ const KANA_ROWS = [
   'あいうえお', 'かきくけこ', 'さしすせそ', 'たちつてと', 'なにぬねの',
   'はひふへほ', 'まみむめも', 'や ゆ よ', 'らりるれろ', 'わ を ん',
   'がぎぐげご', 'ざじずぜぞ', 'だぢづでど', 'ばびぶべぼ', 'ぱぴぷぺぽ',
+  ['きゃ', '', 'きゅ', '', 'きょ'], ['しゃ', '', 'しゅ', '', 'しょ'],
+  ['ちゃ', '', 'ちゅ', '', 'ちょ'], ['にゃ', '', 'にゅ', '', 'にょ'],
+  ['ひゃ', '', 'ひゅ', '', 'ひょ'], ['みゃ', '', 'みゅ', '', 'みょ'],
+  ['りゃ', '', 'りゅ', '', 'りょ'], ['ぎゃ', '', 'ぎゅ', '', 'ぎょ'],
+  ['じゃ', '', 'じゅ', '', 'じょ'], ['びゃ', '', 'びゅ', '', 'びょ'],
+  ['ぴゃ', '', 'ぴゅ', '', 'ぴょ'],
 ];
 
 function toKatakana(ch) {
-  return String.fromCharCode(ch.charCodeAt(0) + 0x60);
+  return [...ch].map(c => String.fromCharCode(c.charCodeAt(0) + 0x60)).join('');
 }
 
 let kanaMode = 'hira';
@@ -44,13 +50,14 @@ const tabKata = document.getElementById('tab-kata');
 function buildKanaGrid() {
   kanaGrid.innerHTML = '';
   for (const row of KANA_ROWS) {
-    for (const ch of row) {
+    for (const ch of (typeof row === 'string' ? [...row] : row)) {
       const btn = document.createElement('button');
-      if (ch === ' ') {
+      if (ch.trim() === '') {
         btn.disabled = true;
       } else {
         const kana = kanaMode === 'hira' ? ch : toKatakana(ch);
         btn.textContent = kana;
+        if (kana.length > 1) btn.classList.add('yoon');
         if (kana === selectedKana) btn.classList.add('selected');
         btn.addEventListener('click', () => {
           selectedKana = kana;
@@ -82,8 +89,10 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 const soundCache = new Map();
 
 function toHiragana(ch) {
-  const c = ch.charCodeAt(0);
-  return c >= 0x30a1 && c <= 0x30f6 ? String.fromCharCode(c - 0x60) : ch;
+  return [...ch].map(c => {
+    const code = c.charCodeAt(0);
+    return code >= 0x30a1 && code <= 0x30f6 ? String.fromCharCode(code - 0x60) : c;
+  }).join('');
 }
 
 function ensureSound(char) {
@@ -540,7 +549,8 @@ function render() {
       ctx.translate(body.position.x, body.position.y);
       ctx.rotate(body.angle);
       ctx.fillStyle = '#111';
-      ctx.font = `${Math.round(44 * (body.plugin.scale || 1))}px "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif`;
+      const base = body.plugin.char.length > 1 ? 30 : 44;
+      ctx.font = `${Math.round(base * (body.plugin.scale || 1))}px "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(body.plugin.char, 0, 3);

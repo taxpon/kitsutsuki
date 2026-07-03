@@ -116,6 +116,8 @@ html, body {
   border: 3px solid #222;
   border-radius: 14px;
   max-width: 560px;
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
 }
 
 #kana-panel.hidden { display: none; }
@@ -155,6 +157,7 @@ html, body {
 #kana-grid button:hover { background: #ffe98a; }
 #kana-grid button.selected { background: #ffd93d; }
 #kana-grid button:disabled { visibility: hidden; }
+#kana-grid button.yoon { font-size: 14px; }
 
 @media (max-width: 700px) {
   #toolbar {
