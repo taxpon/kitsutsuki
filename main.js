@@ -7,6 +7,18 @@ const dpr = window.devicePixelRatio || 1;
 let W = window.innerWidth;
 let H = window.innerHeight;
 
+// シェアされた構成は作成時の座標系(worldW×worldH)のまま動かし、表示だけ等倍率ズームする
+let worldW = window.innerWidth;
+let worldH = window.innerHeight;
+let fixedWorld = false;
+const view = { scale: 1, x: 0, y: 0 };
+
+function updateView() {
+  view.scale = Math.min(W / worldW, H / worldH);
+  view.x = (W - worldW * view.scale) / 2;
+  view.y = (H - worldH * view.scale) / 2;
+}
+
 function resize() {
   W = window.innerWidth;
   H = window.innerHeight;
@@ -15,6 +27,11 @@ function resize() {
   canvas.style.width = W + 'px';
   canvas.style.height = H + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (!fixedWorld) {
+    worldW = W;
+    worldH = H;
+  }
+  updateView();
 }
 window.addEventListener('resize', resize);
 resize();
@@ -201,7 +218,7 @@ function spawnBall() {
     restitution: 0.65, friction: 0.02, frictionAir: 0.0008, density: 0.002,
   });
   body.plugin = { kind: 'ball' };
-  Body.setVelocity(body, { x: W < 700 ? 0.8 : 5, y: 0 });
+  Body.setVelocity(body, { x: worldW < 700 ? 0.8 : 5, y: 0 });
   World.add(engine.world, body);
   return body;
 }
@@ -233,27 +250,30 @@ function serializeScene() {
     else if (kind === 'circle') objs.push(['C', x, y]);
     else if (kind === 'triangle') objs.push(['T', x, y, a]);
   }
-  return { v: 1, w: W, h: H, sp: [Math.round(spawnPoint.x), Math.round(spawnPoint.y)], o: objs };
+  return { v: 1, w: Math.round(worldW), h: Math.round(worldH), sp: [Math.round(spawnPoint.x), Math.round(spawnPoint.y)], o: objs };
 }
 
 function restoreScene(data) {
-  const sx = W / data.w, sy = H / data.h;
-  spawnPoint.x = data.sp[0] * sx;
-  spawnPoint.y = data.sp[1] * sy;
+  worldW = data.w;
+  worldH = data.h;
+  fixedWorld = true;
+  updateView();
+  spawnPoint.x = data.sp[0];
+  spawnPoint.y = data.sp[1];
   for (const o of data.o) {
     if (o[0] === 'L') {
-      const b = makeLetter(o[2] * sx, o[3] * sy, o[1]);
+      const b = makeLetter(o[2], o[3], o[1]);
       Body.setAngle(b, o[4]);
       if (o[5] !== 1) {
         Body.scale(b, o[5], o[5]);
         b.plugin.scale = o[5];
       }
     } else if (o[0] === 'W') {
-      makeWallAt(o[1] * sx, o[2] * sy, o[3], o[4]);
+      makeWallAt(o[1], o[2], o[3], o[4]);
     } else if (o[0] === 'C') {
-      makeCircle(o[1] * sx, o[2] * sy);
+      makeCircle(o[1], o[2]);
     } else if (o[0] === 'T') {
-      Body.setAngle(makeTriangle(o[1] * sx, o[2] * sy), o[3]);
+      Body.setAngle(makeTriangle(o[1], o[2]), o[3]);
     }
   }
 }
@@ -398,7 +418,10 @@ btnShare.addEventListener('click', async () => {
 
 function canvasPos(ev) {
   const rect = canvas.getBoundingClientRect();
-  return { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
+  return {
+    x: (ev.clientX - rect.left - view.x) / view.scale,
+    y: (ev.clientY - rect.top - view.y) / view.scale,
+  };
 }
 
 function bodyAt(p) {
@@ -506,6 +529,9 @@ function render() {
   const now = performance.now();
   ctx.fillStyle = '#00cc00';
   ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(view.x, view.y);
+  ctx.scale(view.scale, view.scale);
 
   for (let i = effects.length - 1; i >= 0; i--) {
     const e = effects[i];
@@ -596,6 +622,8 @@ function render() {
     ctx.lineCap = 'round';
     ctx.stroke();
   }
+
+  ctx.restore();
 }
 
 // ---- メインループ ----
@@ -608,7 +636,7 @@ function tick(now) {
   // がめんのそとにおちたボールをけす
   for (const body of Composite.allBodies(engine.world)) {
     if (body.plugin?.kind === 'ball' &&
-        (body.position.y > H + 200 || body.position.x < -200 || body.position.x > W + 200)) {
+        (body.position.y > worldH + 200 || body.position.x < -200 || body.position.x > worldW + 200)) {
       World.remove(engine.world, body);
     }
   }
