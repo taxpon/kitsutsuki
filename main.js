@@ -384,6 +384,16 @@ function initialScene() {
       } else {
         restoreScene(JSON.parse(await decompressFromBase64url(m[2])));
       }
+      if (view.scale < 0.7 && matchMedia('(pointer: coarse)').matches) {
+        const hintEl = document.createElement('div');
+        hintEl.id = 'zoom-hint';
+        hintEl.textContent = '👆 2ほんのゆびで かくだい・いどうできるよ';
+        document.body.appendChild(hintEl);
+        setTimeout(() => {
+          hintEl.style.opacity = '0';
+          setTimeout(() => hintEl.remove(), 500);
+        }, 5000);
+      }
       return;
     } catch (e) {
       // こわれたURLは初期シーンにフォールバック
@@ -520,6 +530,34 @@ let draggingSpawn = false;
 let wallStart = null;
 let wallPreview = null;
 let lastTap = { t: 0, x: 0, y: 0 };
+let pendingPlace = null;
+
+// 2本指ピンチでシェアされた構成をズーム/パンできるようにする
+const screenPointers = new Map();
+let pinch = null;
+
+function clampView() {
+  const ws = worldW * view.scale, hs = worldH * view.scale;
+  view.x = ws <= W ? (W - ws) / 2 : Math.min(0, Math.max(view.x, W - ws));
+  view.y = hs <= H ? (H - hs) / 2 : Math.min(0, Math.max(view.y, H - hs));
+}
+
+function applyPinch() {
+  const [a, b] = [...screenPointers.values()];
+  const dist = Math.hypot(a.x - b.x, a.y - b.y);
+  const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+  if (pinch.dist > 0 && dist > 0) {
+    const fit = Math.min(W / worldW, H / worldH);
+    const ns = Math.min(Math.max(view.scale * dist / pinch.dist, fit), 3);
+    const wx = (pinch.cx - view.x) / view.scale;
+    const wy = (pinch.cy - view.y) / view.scale;
+    view.scale = ns;
+    view.x = cx - wx * ns;
+    view.y = cy - wy * ns;
+    clampView();
+  }
+  pinch = { dist, cx, cy };
+}
 
 function overSpawnPoint(p) {
   return Math.hypot(p.x - spawnPoint.x, p.y - spawnPoint.y) < 34;
@@ -527,8 +565,19 @@ function overSpawnPoint(p) {
 
 canvas.addEventListener('pointerdown', (ev) => {
   ev.preventDefault();
-  canvas.setPointerCapture(ev.pointerId);
+  try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
   warmUpSpeech();
+  screenPointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (fixedWorld && screenPointers.size === 2) {
+    dragging = null;
+    draggingSpawn = false;
+    wallStart = null;
+    wallPreview = null;
+    pendingPlace = null;
+    const [a, b] = [...screenPointers.values()];
+    pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+    return;
+  }
   const p = canvasPos(ev);
   if (mode === 'select') {
     const now = performance.now();
@@ -549,15 +598,11 @@ canvas.addEventListener('pointerdown', (ev) => {
       dragOffset = { x: body.position.x - p.x, y: body.position.y - p.y };
       canvas.style.cursor = 'grabbing';
     }
-  } else if (mode === 'letter') {
-    makeLetter(p.x, p.y, selectedKana);
+  } else if (mode === 'letter' || mode === 'circle' || mode === 'triangle') {
+    pendingPlace = { mode, p };
   } else if (mode === 'wall') {
     wallStart = p;
     wallPreview = p;
-  } else if (mode === 'circle') {
-    makeCircle(p.x, p.y);
-  } else if (mode === 'triangle') {
-    makeTriangle(p.x, p.y);
   } else if (mode === 'erase') {
     const body = bodyAt(p);
     if (body) World.remove(engine.world, body);
@@ -565,7 +610,17 @@ canvas.addEventListener('pointerdown', (ev) => {
 });
 
 canvas.addEventListener('pointermove', (ev) => {
+  if (screenPointers.has(ev.pointerId)) {
+    screenPointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  }
+  if (pinch && screenPointers.size >= 2) {
+    applyPinch();
+    return;
+  }
   const p = canvasPos(ev);
+  if (pendingPlace && Math.hypot(p.x - pendingPlace.p.x, p.y - pendingPlace.p.y) > 16) {
+    pendingPlace = null;
+  }
   if (draggingSpawn) {
     spawnPoint.x = p.x;
     spawnPoint.y = p.y;
@@ -580,6 +635,15 @@ canvas.addEventListener('pointermove', (ev) => {
 });
 
 window.addEventListener('pointerup', (ev) => {
+  screenPointers.delete(ev.pointerId);
+  if (screenPointers.size < 2) pinch = null;
+  if (pendingPlace) {
+    const { mode: m, p } = pendingPlace;
+    if (m === 'letter') makeLetter(p.x, p.y, selectedKana);
+    else if (m === 'circle') makeCircle(p.x, p.y);
+    else makeTriangle(p.x, p.y);
+    pendingPlace = null;
+  }
   if (wallStart) {
     const p = canvasPos(ev);
     if (Math.hypot(p.x - wallStart.x, p.y - wallStart.y) > 20) {
@@ -591,6 +655,14 @@ window.addEventListener('pointerup', (ev) => {
   dragging = null;
   draggingSpawn = false;
   if (mode === 'select') canvas.style.cursor = 'grab';
+});
+
+window.addEventListener('pointercancel', (ev) => {
+  screenPointers.delete(ev.pointerId);
+  if (screenPointers.size < 2) pinch = null;
+  pendingPlace = null;
+  dragging = null;
+  draggingSpawn = false;
 });
 
 canvas.addEventListener('wheel', (ev) => {
